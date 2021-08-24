@@ -42,7 +42,6 @@ public class RoadAddrApiController {
     public ResponseEntity<?> getRoadAddr(@RequestParam(value = "searchRoadAddr") String searchRoadAddress
                                         ,@RequestParam(value = "searchRoadAddrBldgNumber", required = false)  String searchBldgNumber) {
 
-
         Integer buildingMainNumber = 0;      // DB에 조회하기 위한 도로명주소 건물본번
         Integer buildingSubNumber = 0;       // DB에 조회하기 위한 도로명주소 건물부번
 
@@ -55,6 +54,7 @@ public class RoadAddrApiController {
 
         // 실행중 예외발생을 탐지하기 위하여
         try {
+            log.info("[searchRoadAddress] "+searchRoadAddress);
             /**
              1. 입력된 searchRoadAddress 는 필수값이므로 무조건 입력되어 들어오게 됩니다.
              2. 입력된 searchBldgNumber 는 필수값이 아니므로 값이 있을수도 없을수도 있습니다.
@@ -64,35 +64,35 @@ public class RoadAddrApiController {
              */
             // searchBldgNumber null 이 아니면 건물번호가 입력된 것 입니다.
             if (searchBldgNumber != null) {
-
                 // 건물번호가 본번 형태인지 부번 형태인지 '-' 을 기준으로 확인해야 합니다.
-
-
-                // 건물번호가 본번만 입력된 형태라면 (예 : 흑석로 84)
-
-
-                    // 건물번호가 문자로 되어 있으므로 숫자로 바꿔야 합니다. (DB는 숫자컬럼으로 되어 있음)
-
-
-                    // 도로명 검색어를 Like 로 하여 건물번호가 일치하는 도로명 주소를 찾습니다.
-
-
-
-                // 건물번호가 본번,부번 모두 입력된 형태라면 (예 : 흑석로 84-116)
-
-
+                if(searchBldgNumber.indexOf("-")!=-1){ // 건물번호가 본번,부번 모두 입력된 형태라면 (예 : 흑석로 84-116)
+                    log.info("[searchBldgNumber] "+searchBldgNumber);
+                    String str_split[] = searchBldgNumber.split("-");
                     // 건물번호(본번/부번)이 문자로 되어 있으므로 숫자로 바꿔야 합니다. (DB는 숫자컬럼으로 되어 있음)
+                    buildingMainNumber = Integer.parseInt(str_split[0]);
+                    buildingSubNumber = Integer.parseInt(str_split[1]);
 
                     // 도로명 검색어를 = 로 하여 건물본번, 건물부번 모두가 일치하는 도로명 주소를 찾습니다.
+                    searchResultList = roadAddrRepository.findByRoadNameAndBldgMainNoAndBldgSubNo(searchRoadAddress,buildingMainNumber,buildingSubNumber);
 
-
+                }else{  // 건물번호가 본번만 입력된 형태라면 (예 : 흑석로 84)
+                    buildingMainNumber = Integer.parseInt(searchBldgNumber);   // 건물번호가 문자로 되어 있으므로 숫자로 바꿔야 합니다. (DB는 숫자컬럼으로 되어 있음)
+                    searchResultList = roadAddrRepository.findByRoadNameStartingWithAndBldgMainNo(searchRoadAddress,buildingMainNumber);   // 도로명 검색어를 Like 로 하여 건물번호가 일치하는 도로명 주소를 찾습니다.
+                }
+                log.info("[searchResultListSize] "+searchResultListSize);
+                searchResultListSize = searchResultList.size();
             }
             // searchBldgNumber null 이면 도로명 검색어만 입력된 것입니다.
             else {
 
                 // 도로명 검색어를 Like 로 하여 도로명 주소를 찾습니다.
                 searchResultList = roadAddrRepository.findByRoadNameStartingWith(searchRoadAddress);
-
+                searchResultListSize = searchResultList.size();
+                /* 로그 찍어보기
+                log.info("[searchResultListSize] "+searchResultListSize);
+                for(int i=0; i<searchResultList.size(); i++){
+                    log.info("[output"+i+"]"+ searchResultList.get(i).getFullRoadAddr());
+                }*/
             }
 
             // 도로명 주소가 검색된 결과가 없다면.
@@ -104,7 +104,7 @@ public class RoadAddrApiController {
             returnMap.put(resRoadAddr, searchResultList);  // return 주소정보는 조회 결과를 넣습니다.
             returnMap.put(resCnt, searchResultListSize); // return 건수정보는 조회 결과의 건수를 넣습니다.
 
-            throw new Exception();
+            //throw new Exception();
         }
         // 실행중 예외가 발생할 경우
         catch (Exception e) {
@@ -113,13 +113,12 @@ public class RoadAddrApiController {
 
             resultStatus = HttpStatus.SERVICE_UNAVAILABLE;    // HTTP Status 코드는 SERVICE_UNAVAILABLE 로 합니다. (503)
             returnMap.put(resMsg, "오류가 발생하였습니다.");      // return 메세지는 "오류발생" 으로 하고
-                                                              // return 주소정보는 빈 값을 넣습니다.
-                                                              // return 건수정보는 0 건으로 넣습니다.
+            returnMap.put(resRoadAddr,null);                  // return 주소정보는 빈 값을 넣습니다.
+            returnMap.put(resCnt,0);                          // return 건수정보는 0 건으로 넣습니다.
         }
         // 예외여부 상관없이 최종적으로 수행.
         finally {
             entity = new ResponseEntity<>(returnMap, resultStatus);  // 최종적으로 API 결과 ResponseEntity 객체를 생성합니다.
-
             return entity;  // API 반환.
         }
     }
